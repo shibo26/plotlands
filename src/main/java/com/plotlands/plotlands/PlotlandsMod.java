@@ -10,6 +10,6 @@ public class PlotlandsMod implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        Registry.register(Registries.CHUNK_GENERATOR, Identifier.of(ID, "plots"), PlotChunkGenerator.CODEC);
+        Registry.register(Registries.CHUNK_GENERATOR, new Identifier(ID, "plots"), PlotChunkGenerator.CODEC);
     }
 }
