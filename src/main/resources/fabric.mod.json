@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "plotlands",
+  "version": "${version}",
+  "name": "Plotlands",
+  "description": "Adds a world type that generates an infinite 128x128 plot grid with 9-block spruce/birch roads.",
+  "environment": "*",
+  "entrypoints": { "main": ["com.plotlands.plotlands.PlotlandsMod"] },
+  "depends": { "fabricloader": ">=0.16.0", "minecraft": "~1.21.1", "java": ">=21" }
+}
