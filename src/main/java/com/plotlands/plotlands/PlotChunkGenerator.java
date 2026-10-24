@@ -4,29 +4,24 @@ import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.server.world.ServerWorldAccess;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
+import net.minecraft.world.ChunkRegion;
 import net.minecraft.world.HeightLimitView;
 import net.minecraft.world.Heightmap;
-import net.minecraft.world.StructureAccessor;
-import net.minecraft.world.biome.Biome;
+import net.minecraft.world.StructureWorldAccess;
 import net.minecraft.world.biome.source.BiomeAccess;
 import net.minecraft.world.biome.source.BiomeSource;
-import net.minecraft.world.chunk.ChunkAccess;
-import net.minecraft.world.chunk.ChunkSection;
+import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.chunk.ProtoChunk;
-import net.minecraft.world.gen.GenerationSettings;
 import net.minecraft.world.gen.GenerationStep;
-import net.minecraft.world.gen.NoiseConfig;
-import net.minecraft.world.gen.WorldGenRegion;
-import net.minecraft.world.gen.carver.CarvingMask;
+import net.minecraft.world.gen.StructureAccessor;
 import net.minecraft.world.gen.chunk.Blender;
 import net.minecraft.world.gen.chunk.ChunkGenerator;
-import net.minecraft.world.gen.chunk.climate.Climate;
-import net.minecraft.world.levelgen.NoiseColumn;
+import net.minecraft.world.gen.chunk.VerticalBlockSample;
+import net.minecraft.world.gen.noise.NoiseConfig;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public class PlotChunkGenerator extends ChunkGenerator {
 
@@ -46,7 +41,6 @@ public class PlotChunkGenerator extends ChunkGenerator {
     private static final BlockState SLAB    = Blocks.SANDSTONE_SLAB.defaultBlockState();
     private static final BlockState SPRUCE  = Blocks.SPRUCE_PLANKS.defaultBlockState();
     private static final BlockState BIRCH   = Blocks.BIRCH_PLANKS.defaultBlockState();
-    private static final GenerationSettings NO_FEATURES = new GenerationSettings.Builder().build();
 
     private static final int[][] MOTIF = {
         {-2,-4},{-1,-4},{1,-4},{2,-4},
@@ -65,7 +59,7 @@ public class PlotChunkGenerator extends ChunkGenerator {
     }
 
     @Override
-    protected MapCodec<? extends ChunkGenerator> codec() { return CODEC; }
+    protected MapCodec<? extends ChunkGenerator> getCodec() { return CODEC; }
 
     private static int mod(int a, int n) { return ((a % n) + n) % n; }
 
@@ -89,7 +83,7 @@ public class PlotChunkGenerator extends ChunkGenerator {
         return GRASS;
     }
 
-    private static void fill(ProtoChunk chunk, RegistryEntry<Biome> biome) {
+    private static void fill(ProtoChunk chunk) {
         ChunkPos cp = chunk.getPos();
         int x0 = cp.getMinBlockX(), z0 = cp.getMinBlockZ();
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
@@ -101,48 +95,51 @@ public class PlotChunkGenerator extends ChunkGenerator {
                 chunk.setBlockState(pos.set(lx, SURFACE_Y, lz), top, false);
             }
         }
-        for (int sy = -4; sy <= 19; sy++) {
-            ChunkSection sec = chunk.getOrCreateSection(sy);
-            for (int x = 0; x < 4; x++) for (int y = 0; y < 4; y++) for (int z = 0; z < 4; z++)
-                sec.getBiomeContainer().set(x, y, z, biome);
-        }
     }
 
     @Override
-    public void populateNoise(ServerWorldAccess region, StructureAccessor structures, Blender blender,
-                              NoiseConfig noiseConfig, Climate.Sampler sampler, ChunkAccess chunk) {
+    public CompletableFuture<Chunk> populateNoise(Blender blender, NoiseConfig noiseConfig,
+                                                  StructureAccessor structures, Chunk chunk) {
         if (chunk instanceof ProtoChunk proto) {
-            RegistryEntry<Biome> biome = this.biomeSource.getBiome(
-                    chunk.getPos().getMinBlockX() >> 2, 0, chunk.getPos().getMinBlockZ() >> 2, noiseConfig);
-            fill(proto, biome);
+            fill(proto);
         }
+        return CompletableFuture.completedFuture(chunk);
     }
 
-    @Override public void buildSurface(WorldGenRegion region, StructureAccessor structures,
-                                       NoiseConfig noiseConfig, ChunkAccess chunk) { }
-
-    @Override public void carve(BiomeAccess biomeAccess, StructureAccessor structures, NoiseConfig noiseConfig,
-                                Climate.Sampler sampler, ChunkAccess chunk,
-                                GenerationStep.Carving step, CarvingMask mask) { }
-
-    @Override public GenerationSettings getGenerationSettings(RegistryEntry<Biome> biome) { return NO_FEATURES; }
-
-    @Override public int getHeight(int x, int z, Heightmap.Type type,
-                                   HeightLimitView world, NoiseConfig noiseConfig) { return SURFACE_Y + 1; }
+    @Override
+    public void buildSurface(ChunkRegion region, StructureAccessor structures,
+                             NoiseConfig noiseConfig, Chunk chunk) { }
 
     @Override
-    public NoiseColumn getColumn(int x, int z, HeightLimitView world, NoiseConfig noiseConfig) {
-        BlockState[] column = new BlockState[this.getGenDepth()];
-        for (int y = this.getMinY(); y < this.getMinY() + this.getGenDepth(); y++) {
-            column[y - this.getMinY()] =
+    public void carve(ChunkRegion region, long seed, NoiseConfig noiseConfig, BiomeAccess biomeAccess,
+                      StructureAccessor structures, Chunk chunk, GenerationStep.Carver step) { }
+
+    @Override
+    public void populateEntities(ChunkRegion region) { }
+
+    @Override
+    public void generateFeatures(StructureWorldAccess region, Chunk chunk, StructureAccessor structures) { }
+
+    @Override
+    public int getHeight(int x, int z, Heightmap.Type type, HeightLimitView world, NoiseConfig noiseConfig) {
+        return SURFACE_Y + 1;
+    }
+
+    @Override
+    public VerticalBlockSample getColumnSample(int x, int z, HeightLimitView world, NoiseConfig noiseConfig) {
+        BlockState[] column = new BlockState[this.getWorldHeight()];
+        for (int y = this.getMinimumY(); y < this.getMinimumY() + this.getWorldHeight(); y++) {
+            column[y - this.getMinimumY()] =
                     y == -64 ? BEDROCK : (y <= -39 ? DIRT : (y == SURFACE_Y ? surface(x, z) : AIR));
         }
-        return new NoiseColumn(this.getMinY(), column);
+        return new VerticalBlockSample(this.getMinimumY(), column);
     }
 
-    @Override public void addDebugInfo(List<String> list, NoiseConfig noiseConfig, BlockPos pos) { }
+    @Override
+    public void getDebugHudText(List<String> list, NoiseConfig noiseConfig, BlockPos pos) { }
+
     @Override public int getSpawnHeight(HeightLimitView world) { return SURFACE_Y + 1; }
+    @Override public int getWorldHeight() { return 384; }
+    @Override public int getMinimumY() { return -64; }
     @Override public int getSeaLevel() { return -63; }
-    @Override public int getMinY() { return -64; }
-    @Override public int getGenDepth() { return 384; }
 }
