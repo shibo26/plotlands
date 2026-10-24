@@ -14,27 +14,23 @@ jobs:
           gradle-version: '8.10'
           cache-disabled: true
       - name: Build
-        run: gradle build --no-daemon --refresh-dependencies
-        continue-on-error: true
+        run: |
+          gradle build --no-daemon --console=plain > build.log 2>&1 || true
+          tail -n 100 build.log
       - name: Diagnose
         if: always()
         run: |
           J=$(find /home/runner/.gradle/caches/fabric-loom -name "minecraft-merged-1.21.1-*.jar" ! -name "*intermediary*" | head -1)
-          echo "NAMED JAR: $J"
-          echo "== ChunkGenerator =="
-          javap -cp "$J" net.minecraft.world.gen.chunk.ChunkGenerator
-          echo "== BiomeSource =="
-          javap -cp "$J" net.minecraft.world.biome.source.BiomeSource | head -25
-          echo "== ChunkSection =="
-          javap -cp "$J" net.minecraft.world.chunk.ChunkSection | head -25
-          echo "== ChunkAccess =="
-          javap -cp "$J" net.minecraft.world.chunk.ChunkAccess | head -40
-          echo "== GenerationSettings =="
-          javap -cp "$J" net.minecraft.world.gen.GenerationSettings 'net.minecraft.world.gen.GenerationSettings$Builder' | head -40
-          echo "== Heightmap =="
-          javap -cp "$J" net.minecraft.world.Heightmap | head -20
-          echo "== name search =="
-          unzip -l "$J" | grep -iE "column|climate|sampler|carvingmask|heightlimit|structureaccessor|worldgenregion|serverworldaccess" | head -30
+          echo "== VerticalBlockSample =="
+          javap -cp "$J" net.minecraft.world.gen.chunk.VerticalBlockSample
+          echo "== ProtoChunk =="
+          javap -cp "$J" net.minecraft.world.chunk.ProtoChunk | head -30
+          echo "== Identifier =="
+          javap -cp "$J" net.minecraft.util.Identifier | head -12
+          echo "== Registries CHUNK_GENERATOR =="
+          javap -cp "$J" net.minecraft.registry.Registries | grep -i "CHUNK_GENERATOR"
+          echo "== build/libs contents =="
+          ls -la build/libs || true
       - name: Fail if no jar was produced
         run: test -f build/libs/plotlands-1.0.0.jar
       - uses: actions/upload-artifact@v4
