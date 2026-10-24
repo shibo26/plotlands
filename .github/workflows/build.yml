@@ -21,7 +21,20 @@ jobs:
         run: |
           J=$(find /home/runner/.gradle/caches/fabric-loom -name "minecraft-merged-1.21.1-*.jar" ! -name "*intermediary*" | head -1)
           echo "NAMED JAR: $J"
-          unzip -l "$J" 2>/dev/null | grep -E "ChunkGenerator|NoiseColumn|climate" | head -20
+          echo "== ChunkGenerator =="
+          javap -cp "$J" net.minecraft.world.gen.chunk.ChunkGenerator
+          echo "== BiomeSource =="
+          javap -cp "$J" net.minecraft.world.biome.source.BiomeSource | head -25
+          echo "== ChunkSection =="
+          javap -cp "$J" net.minecraft.world.chunk.ChunkSection | head -25
+          echo "== ChunkAccess =="
+          javap -cp "$J" net.minecraft.world.chunk.ChunkAccess | head -40
+          echo "== GenerationSettings =="
+          javap -cp "$J" net.minecraft.world.gen.GenerationSettings 'net.minecraft.world.gen.GenerationSettings$Builder' | head -40
+          echo "== Heightmap =="
+          javap -cp "$J" net.minecraft.world.Heightmap | head -20
+          echo "== name search =="
+          unzip -l "$J" | grep -iE "column|climate|sampler|carvingmask|heightlimit|structureaccessor|worldgenregion|serverworldaccess" | head -30
       - name: Fail if no jar was produced
         run: test -f build/libs/plotlands-1.0.0.jar
       - uses: actions/upload-artifact@v4
