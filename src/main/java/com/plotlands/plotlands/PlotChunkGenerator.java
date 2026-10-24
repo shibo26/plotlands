@@ -2,33 +2,33 @@ package com.plotlands.plotlands;
 
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Holder;
-import net.minecraft.server.level.ServerLevelAccessor;
-import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.LevelHeightAccess;
-import net.minecraft.world.level.WorldGenLevel;
-import net.minecraft.world.level.WorldGenRegion;
-import net.minecraft.world.level.biome.Biome;
-import net.minecraft.world.level.biome.BiomeManager;
-import net.minecraft.world.level.biome.BiomeSource;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.chunk.LevelChunkSection;
-import net.minecraft.world.level.chunk.ProtoChunk;
-import net.minecraft.world.level.levelgen.Blender;
-import net.minecraft.world.level.levelgen.GenerationStep;
-import net.minecraft.world.level.levelgen.GenerationSettings;
-import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.level.levelgen.NoiseColumn;
-import net.minecraft.world.level.levelgen.RandomState;
-import net.minecraft.world.level.levelgen.carving.CarvingMask;
-import net.minecraft.world.level.levelgen.climate.Climate;
-import net.minecraft.world.level.levelgen.structure.StructureAccessor;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.server.world.ServerWorldAccess;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.ChunkPos;
+import net.minecraft.world.HeightLimitView;
+import net.minecraft.world.Heightmap;
+import net.minecraft.world.StructureAccessor;
+import net.minecraft.world.biome.Biome;
+import net.minecraft.world.biome.source.BiomeAccess;
+import net.minecraft.world.biome.source.BiomeSource;
+import net.minecraft.world.chunk.ChunkAccess;
+import net.minecraft.world.chunk.ChunkSection;
+import net.minecraft.world.chunk.ProtoChunk;
+import net.minecraft.world.gen.GenerationSettings;
+import net.minecraft.world.gen.GenerationStep;
+import net.minecraft.world.gen.NoiseConfig;
+import net.minecraft.world.gen.WorldGenRegion;
+import net.minecraft.world.gen.carver.CarvingMask;
+import net.minecraft.world.gen.chunk.Blender;
+import net.minecraft.world.gen.chunk.ChunkGenerator;
+import net.minecraft.world.gen.chunk.climate.Climate;
+import net.minecraft.world.levelgen.NoiseColumn;
 import java.util.List;
 
-public class PlotChunkGenerator extends net.minecraft.world.level.levelgen.ChunkGenerator {
+public class PlotChunkGenerator extends ChunkGenerator {
 
     public static final MapCodec<PlotChunkGenerator> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             BiomeSource.CODEC.fieldOf("biome_source").forGetter(g -> g.biomeSource)
@@ -46,6 +46,7 @@ public class PlotChunkGenerator extends net.minecraft.world.level.levelgen.Chunk
     private static final BlockState SLAB    = Blocks.SANDSTONE_SLAB.defaultBlockState();
     private static final BlockState SPRUCE  = Blocks.SPRUCE_PLANKS.defaultBlockState();
     private static final BlockState BIRCH   = Blocks.BIRCH_PLANKS.defaultBlockState();
+    private static final GenerationSettings NO_FEATURES = new GenerationSettings.Builder().build();
 
     private static final int[][] MOTIF = {
         {-2,-4},{-1,-4},{1,-4},{2,-4},
@@ -64,7 +65,7 @@ public class PlotChunkGenerator extends net.minecraft.world.level.levelgen.Chunk
     }
 
     @Override
-    protected MapCodec<? extends net.minecraft.world.level.levelgen.ChunkGenerator> codec() { return CODEC; }
+    protected MapCodec<? extends ChunkGenerator> codec() { return CODEC; }
 
     private static int mod(int a, int n) { return ((a % n) + n) % n; }
 
@@ -88,7 +89,7 @@ public class PlotChunkGenerator extends net.minecraft.world.level.levelgen.Chunk
         return GRASS;
     }
 
-    private static void fill(ProtoChunk chunk, Holder<Biome> biome) {
+    private static void fill(ProtoChunk chunk, RegistryEntry<Biome> biome) {
         ChunkPos cp = chunk.getPos();
         int x0 = cp.getMinBlockX(), z0 = cp.getMinBlockZ();
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
@@ -100,42 +101,37 @@ public class PlotChunkGenerator extends net.minecraft.world.level.levelgen.Chunk
                 chunk.setBlockState(pos.set(lx, SURFACE_Y, lz), top, false);
             }
         }
-        for (int sy = chunk.getMinSection(); sy < chunk.getMaxSection(); sy++) {
-            LevelChunkSection sec = chunk.getOrCreateSection(chunk.getSectionIndex(sy * 16));
+        for (int sy = -4; sy <= 19; sy++) {
+            ChunkSection sec = chunk.getOrCreateSection(sy);
             for (int x = 0; x < 4; x++) for (int y = 0; y < 4; y++) for (int z = 0; z < 4; z++)
-                sec.biomes.set(x, y, z, biome);
+                sec.getBiomeContainer().set(x, y, z, biome);
         }
     }
 
     @Override
-    public void applyNoise(ServerLevelAccessor level, StructureAccessor structures, Blender blender,
-                           RandomState randomState, Climate.Sampler sampler, ChunkAccess chunk) {
+    public void populateNoise(ServerWorldAccess region, StructureAccessor structures, Blender blender,
+                              NoiseConfig noiseConfig, Climate.Sampler sampler, ChunkAccess chunk) {
         if (chunk instanceof ProtoChunk proto) {
-            Holder<Biome> biome = this.biomeSource.getNoiseBiome(
-                    chunk.getPos().getMinBlockX() >> 2, 0, chunk.getPos().getMinBlockZ() >> 2, randomState);
+            RegistryEntry<Biome> biome = this.biomeSource.getBiome(
+                    chunk.getPos().getMinBlockX() >> 2, 0, chunk.getPos().getMinBlockZ() >> 2, noiseConfig);
             fill(proto, biome);
         }
     }
 
     @Override public void buildSurface(WorldGenRegion region, StructureAccessor structures,
-                                       RandomState randomState, ChunkAccess chunk) { }
+                                       NoiseConfig noiseConfig, ChunkAccess chunk) { }
 
-    @Override public void applyCarvers(BiomeManager biomeManager, StructureAccessor structures,
-                                       RandomState randomState, Climate.Sampler sampler, ChunkAccess chunk,
-                                       GenerationStep.Carving step, CarvingMask mask) { }
+    @Override public void carve(BiomeAccess biomeAccess, StructureAccessor structures, NoiseConfig noiseConfig,
+                                Climate.Sampler sampler, ChunkAccess chunk,
+                                GenerationStep.Carving step, CarvingMask mask) { }
 
-    @Override public void applyBiomeDecoration(WorldGenLevel level, ChunkAccess chunk,
-                                               StructureAccessor structures) { }
+    @Override public GenerationSettings getGenerationSettings(RegistryEntry<Biome> biome) { return NO_FEATURES; }
 
-    @Override public GenerationSettings getBiomeGenerationSettings(Holder<Biome> biome) {
-        return biome.value().getGenerationSettings();
-    }
-
-    @Override public int getBaseHeight(int x, int z, Heightmap.Types type,
-                                       LevelHeightAccess level, RandomState randomState) { return SURFACE_Y + 1; }
+    @Override public int getHeight(int x, int z, Heightmap.Type type,
+                                   HeightLimitView world, NoiseConfig noiseConfig) { return SURFACE_Y + 1; }
 
     @Override
-    public NoiseColumn getBaseColumn(int x, int z, LevelHeightAccess level, RandomState randomState) {
+    public NoiseColumn getColumn(int x, int z, HeightLimitView world, NoiseConfig noiseConfig) {
         BlockState[] column = new BlockState[this.getGenDepth()];
         for (int y = this.getMinY(); y < this.getMinY() + this.getGenDepth(); y++) {
             column[y - this.getMinY()] =
@@ -144,8 +140,8 @@ public class PlotChunkGenerator extends net.minecraft.world.level.levelgen.Chunk
         return new NoiseColumn(this.getMinY(), column);
     }
 
-    @Override public void addDebugScreenInfo(List<String> list, RandomState randomState, BlockPos pos) { }
-    @Override public int getSpawnHeight(LevelHeightAccess level) { return SURFACE_Y + 1; }
+    @Override public void addDebugInfo(List<String> list, NoiseConfig noiseConfig, BlockPos pos) { }
+    @Override public int getSpawnHeight(HeightLimitView world) { return SURFACE_Y + 1; }
     @Override public int getSeaLevel() { return -63; }
     @Override public int getMinY() { return -64; }
     @Override public int getGenDepth() { return 384; }
