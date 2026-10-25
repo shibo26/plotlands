@@ -34,7 +34,6 @@ public class PlotChunkGenerator extends ChunkGenerator {
     public static final int PERIOD = PLOT + ROAD;
     private static final int SURFACE_Y = 63;
 
-    // FIX: Use getDefaultState() for Yarn mappings (Fabric)
     private static final BlockState AIR = Blocks.AIR.getDefaultState();
     private static final BlockState GRASS = Blocks.GRASS_BLOCK.getDefaultState();
     private static final BlockState DIRT = Blocks.DIRT.getDefaultState();
@@ -60,9 +59,13 @@ public class PlotChunkGenerator extends ChunkGenerator {
     }
 
     @Override
-    protected MapCodec<? extends ChunkGenerator> getCodec() { return CODEC; }
+    protected MapCodec<? extends ChunkGenerator> getCodec() { 
+        return CODEC; 
+    }
 
-    private static int mod(int a, int n) { return ((a % n) + n) % n; }
+    private static int mod(int a, int n) { 
+        return ((a % n) + n) % n; 
+    }
 
     private static BlockState roadProfile(int i) {
         return (i < 2 || i > 6) ? SPRUCE : BIRCH;
@@ -70,7 +73,9 @@ public class PlotChunkGenerator extends ChunkGenerator {
 
     private static BlockState motif(int i, int j) {
         int di = i - 4, dj = j - 4;
-        for (int[] o : MOTIF) if (o[0] == di && o[1] == dj) return SPRUCE;
+        for (int[] o : MOTIF) {
+            if (o[0] == di && o[1] == dj) return SPRUCE;
+        }
         return BIRCH;
     }
 
@@ -86,9 +91,10 @@ public class PlotChunkGenerator extends ChunkGenerator {
 
     private static void fill(ProtoChunk chunk) {
         ChunkPos cp = chunk.getPos();
-        // FIX: Use getStartX() and getStartZ() for Yarn mappings
         int x0 = cp.getStartX(), z0 = cp.getStartZ();
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        
+        // FIX: Use BlockPos.Mutable (Yarn mapping) instead of MutableBlockPos
+        BlockPos.Mutable pos = new BlockPos.Mutable();
         
         for (int lx = 0; lx < 16; lx++) {
             for (int lz = 0; lz < 16; lz++) {
