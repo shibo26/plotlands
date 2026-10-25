@@ -43,20 +43,17 @@ public class PlotChunkGenerator extends ChunkGenerator {
     private static final BlockState SPRUCE = Blocks.SPRUCE_PLANKS.getDefaultState();
     private static final BlockState BIRCH = Blocks.BIRCH_PLANKS.getDefaultState();
 
-    // Corrected motif pattern to match the reference image
-    private static final int[][] MOTIF = {
-        // Center
-        {0, 0},
-        // Cardinal directions (forming +)
-        {-1, 0}, {1, 0}, {0, -1}, {0, 1},
-        // Diagonal corners
-        {-2, -2}, {2, -2}, {-2, 2}, {2, 2},
-        // Extended diagonals
-        {-3, -1}, {3, -1}, {-1, -3}, {1, -3},
-        {-3, 1}, {3, 1}, {-1, 3}, {1, 3},
-        // Outer pattern
-        {-4, -2}, {4, -2}, {-2, -4}, {2, -4},
-        {-4, 2}, {4, 2}, {-2, 4}, {2, 4}
+    // Corrected motif - matches the reference image exactly
+    private static final boolean[][] MOTIF = {
+        {false, false, true,  false, false, false, true,  false, false},
+        {false, false, false, true,  false, true,  false, false, false},
+        {true,  false, false, false, false, false, false, false, true},
+        {false, true,  false, false, true,  false, false, true,  false},
+        {false, false, false, true,  true,  true,  false, false, false},
+        {false, true,  false, false, true,  false, false, true,  false},
+        {true,  false, false, false, false, false, false, false, true},
+        {false, false, false, true,  false, true,  false, false, false},
+        {false, false, true,  false, false, false, true,  false, false}
     };
 
     public PlotChunkGenerator(BiomeSource biomeSource) {
@@ -73,16 +70,21 @@ public class PlotChunkGenerator extends ChunkGenerator {
     }
 
     private static BlockState roadProfile(int i) {
-        // i is 0-8, roads are 2 spruce, 5 birch, 2 spruce
+        // 2 spruce, 5 birch, 2 spruce
         return (i < 2 || i > 6) ? SPRUCE : BIRCH;
     }
 
     private static BlockState motif(int i, int j) {
-        int di = i - 4, dj = j - 4;
-        for (int[] o : MOTIF) {
-            if (o[0] == di && o[1] == dj) return SPRUCE;
+        return MOTIF[i][j] ? SPRUCE : BIRCH;
+    }
+
+    private static boolean isSlabPosition(int wx, int wz) {
+        int u = mod(wx, PERIOD), v = mod(wz, PERIOD);
+        // Check if on plot border (but not in road area)
+        if (u < PLOT && v < PLOT) {
+            return (u == 0 || u == PLOT - 1 || v == 0 || v == PLOT - 1);
         }
-        return BIRCH;
+        return false;
     }
 
     private static BlockState surface(int wx, int wz) {
@@ -101,10 +103,6 @@ public class PlotChunkGenerator extends ChunkGenerator {
             // Horizontal road  
             return roadProfile(v - PLOT);
         }
-        // Plot border - slabs on the edge
-        if (u == 0 || u == PLOT - 1 || v == 0 || v == PLOT - 1) {
-            return SLAB;
-        }
         // Inside plot - grass
         return GRASS;
     }
@@ -120,6 +118,7 @@ public class PlotChunkGenerator extends ChunkGenerator {
                 int worldX = x0 + lx;
                 int worldZ = z0 + lz;
                 BlockState topBlock = surface(worldX, worldZ);
+                boolean hasSlab = isSlabPosition(worldX, worldZ);
                 
                 // Generate proper depth from bedrock up
                 for (int y = chunk.getBottomY(); y <= SURFACE_Y; y++) {
@@ -143,6 +142,12 @@ public class PlotChunkGenerator extends ChunkGenerator {
                     
                     pos.set(lx, y, lz);
                     chunk.setBlockState(pos, state, false);
+                }
+                
+                // Place slabs ON TOP of the surface
+                if (hasSlab) {
+                    pos.set(lx, SURFACE_Y + 1, lz);
+                    chunk.setBlockState(pos, SLAB, false);
                 }
             }
         }
@@ -173,11 +178,14 @@ public class PlotChunkGenerator extends ChunkGenerator {
 
     @Override
     public int getHeight(int x, int z, Heightmap.Type type, HeightLimitView world, NoiseConfig noiseConfig) {
-        return SURFACE_Y + 1;
+        return SURFACE_Y + (isSlabPosition(x, z) ? 2 : 1);
     }
 
     @Override
     public VerticalBlockSample getColumnSample(int x, int z, HeightLimitView world, NoiseConfig noiseConfig) {
+        boolean hasSlab = isSlabPosition(x, z);
+        int topY = hasSlab ? SURFACE_Y + 1 : SURFACE_Y;
+        
         BlockState[] column = new BlockState[this.getWorldHeight()];
         for (int y = this.getMinimumY(); y < this.getMinimumY() + this.getWorldHeight(); y++) {
             if (y == this.getMinimumY()) {
@@ -188,6 +196,8 @@ public class PlotChunkGenerator extends ChunkGenerator {
                 column[y - this.getMinimumY()] = DIRT;
             } else if (y == SURFACE_Y) {
                 column[y - this.getMinimumY()] = surface(x, z);
+            } else if (y == SURFACE_Y + 1 && hasSlab) {
+                column[y - this.getMinimumY()] = SLAB;
             } else {
                 column[y - this.getMinimumY()] = AIR;
             }
