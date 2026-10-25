@@ -10,6 +10,7 @@ public class PlotlandsMod implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        Registry.register(Registries.CHUNK_GENERATOR, new Identifier(ID, "plots"), PlotChunkGenerator.CODEC);
+        // FIX: Use Identifier.of() for Minecraft 1.21+
+        Registry.register(Registries.CHUNK_GENERATOR, Identifier.of(ID, "plots"), PlotChunkGenerator.CODEC);
     }
 }
