@@ -37,21 +37,26 @@ public class PlotChunkGenerator extends ChunkGenerator {
     private static final BlockState AIR = Blocks.AIR.getDefaultState();
     private static final BlockState GRASS = Blocks.GRASS_BLOCK.getDefaultState();
     private static final BlockState DIRT = Blocks.DIRT.getDefaultState();
+    private static final BlockState STONE = Blocks.STONE.getDefaultState();
     private static final BlockState BEDROCK = Blocks.BEDROCK.getDefaultState();
     private static final BlockState SLAB = Blocks.SANDSTONE_SLAB.getDefaultState();
     private static final BlockState SPRUCE = Blocks.SPRUCE_PLANKS.getDefaultState();
     private static final BlockState BIRCH = Blocks.BIRCH_PLANKS.getDefaultState();
 
+    // Corrected motif pattern to match the reference image
     private static final int[][] MOTIF = {
-        {-2,-4},{-1,-4},{1,-4},{2,-4},
-        {-1,-3},{1,-3},
-        {-2,-2},{0,-2},{2,-2},
-        {-3,-1},{3,-1},
-        {-4,0},{-2,0},{0,0},{2,0},{4,0},
-        {-3,1},{3,1},
-        {-2,2},{0,2},{2,2},
-        {-1,3},{1,3},
-        {-2,4},{-1,4},{1,4},{2,4}
+        // Center
+        {0, 0},
+        // Cardinal directions (forming +)
+        {-1, 0}, {1, 0}, {0, -1}, {0, 1},
+        // Diagonal corners
+        {-2, -2}, {2, -2}, {-2, 2}, {2, 2},
+        // Extended diagonals
+        {-3, -1}, {3, -1}, {-1, -3}, {1, -3},
+        {-3, 1}, {3, 1}, {-1, 3}, {1, 3},
+        // Outer pattern
+        {-4, -2}, {4, -2}, {-2, -4}, {2, -4},
+        {-4, 2}, {4, 2}, {-2, 4}, {2, 4}
     };
 
     public PlotChunkGenerator(BiomeSource biomeSource) {
@@ -68,6 +73,7 @@ public class PlotChunkGenerator extends ChunkGenerator {
     }
 
     private static BlockState roadProfile(int i) {
+        // i is 0-8, roads are 2 spruce, 5 birch, 2 spruce
         return (i < 2 || i > 6) ? SPRUCE : BIRCH;
     }
 
@@ -82,10 +88,24 @@ public class PlotChunkGenerator extends ChunkGenerator {
     private static BlockState surface(int wx, int wz) {
         int u = mod(wx, PERIOD), v = mod(wz, PERIOD);
         boolean uRoad = u >= PLOT, vRoad = v >= PLOT;
-        if (uRoad && vRoad) return motif(u - PLOT, v - PLOT);
-        if (uRoad) return roadProfile(u - PLOT);
-        if (vRoad) return roadProfile(v - PLOT);
-        if (u == 0 || u == PLOT - 1 || v == 0 || v == PLOT - 1) return SLAB;
+        
+        if (uRoad && vRoad) {
+            // Intersection - 9x9 area
+            return motif(u - PLOT, v - PLOT);
+        }
+        if (uRoad) {
+            // Vertical road
+            return roadProfile(u - PLOT);
+        }
+        if (vRoad) {
+            // Horizontal road  
+            return roadProfile(v - PLOT);
+        }
+        // Plot border - slabs on the edge
+        if (u == 0 || u == PLOT - 1 || v == 0 || v == PLOT - 1) {
+            return SLAB;
+        }
+        // Inside plot - grass
         return GRASS;
     }
 
@@ -93,17 +113,37 @@ public class PlotChunkGenerator extends ChunkGenerator {
         ChunkPos cp = chunk.getPos();
         int x0 = cp.getStartX(), z0 = cp.getStartZ();
         
-        // FIX: Use BlockPos.Mutable (Yarn mapping) instead of MutableBlockPos
         BlockPos.Mutable pos = new BlockPos.Mutable();
         
         for (int lx = 0; lx < 16; lx++) {
             for (int lz = 0; lz < 16; lz++) {
-                BlockState top = surface(x0 + lx, z0 + lz);
-                chunk.setBlockState(pos.set(lx, -64, lz), BEDROCK, false);
-                for (int y = -63; y <= -39; y++) {
-                    chunk.setBlockState(pos.set(lx, y, lz), DIRT, false);
+                int worldX = x0 + lx;
+                int worldZ = z0 + lz;
+                BlockState topBlock = surface(worldX, worldZ);
+                
+                // Generate proper depth from bedrock up
+                for (int y = chunk.getBottomY(); y <= SURFACE_Y; y++) {
+                    BlockState state;
+                    
+                    if (y == chunk.getBottomY()) {
+                        // Bedrock layer
+                        state = BEDROCK;
+                    } else if (y < SURFACE_Y - 3) {
+                        // Deep stone layers
+                        state = STONE;
+                    } else if (y < SURFACE_Y) {
+                        // Dirt layers near surface
+                        state = DIRT;
+                    } else if (y == SURFACE_Y) {
+                        // Surface block
+                        state = topBlock;
+                    } else {
+                        state = AIR;
+                    }
+                    
+                    pos.set(lx, y, lz);
+                    chunk.setBlockState(pos, state, false);
                 }
-                chunk.setBlockState(pos.set(lx, SURFACE_Y, lz), top, false);
             }
         }
     }
@@ -140,8 +180,17 @@ public class PlotChunkGenerator extends ChunkGenerator {
     public VerticalBlockSample getColumnSample(int x, int z, HeightLimitView world, NoiseConfig noiseConfig) {
         BlockState[] column = new BlockState[this.getWorldHeight()];
         for (int y = this.getMinimumY(); y < this.getMinimumY() + this.getWorldHeight(); y++) {
-            column[y - this.getMinimumY()] =
-                y == -64 ? BEDROCK : (y <= -39 ? DIRT : (y == SURFACE_Y ? surface(x, z) : AIR));
+            if (y == this.getMinimumY()) {
+                column[y - this.getMinimumY()] = BEDROCK;
+            } else if (y < SURFACE_Y - 3) {
+                column[y - this.getMinimumY()] = STONE;
+            } else if (y < SURFACE_Y) {
+                column[y - this.getMinimumY()] = DIRT;
+            } else if (y == SURFACE_Y) {
+                column[y - this.getMinimumY()] = surface(x, z);
+            } else {
+                column[y - this.getMinimumY()] = AIR;
+            }
         }
         return new VerticalBlockSample(this.getMinimumY(), column);
     }
@@ -149,8 +198,23 @@ public class PlotChunkGenerator extends ChunkGenerator {
     @Override
     public void getDebugHudText(List<String> list, NoiseConfig noiseConfig, BlockPos pos) { }
 
-    @Override public int getSpawnHeight(HeightLimitView world) { return SURFACE_Y + 1; }
-    @Override public int getWorldHeight() { return 384; }
-    @Override public int getMinimumY() { return -64; }
-    @Override public int getSeaLevel() { return -63; }
+    @Override 
+    public int getSpawnHeight(HeightLimitView world) { 
+        return SURFACE_Y + 1; 
+    }
+    
+    @Override 
+    public int getWorldHeight() { 
+        return 384; 
+    }
+    
+    @Override 
+    public int getMinimumY() { 
+        return -64; 
+    }
+    
+    @Override 
+    public int getSeaLevel() { 
+        return -63; 
+    }
 }
