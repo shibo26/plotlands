@@ -43,17 +43,19 @@ public class PlotChunkGenerator extends ChunkGenerator {
     private static final BlockState SPRUCE = Blocks.SPRUCE_PLANKS.getDefaultState();
     private static final BlockState BIRCH = Blocks.BIRCH_PLANKS.getDefaultState();
 
-    // Corrected motif - matches the reference image exactly
-    private static final boolean[][] MOTIF = {
-        {false, false, true,  false, false, false, true,  false, false},
-        {false, false, false, true,  false, true,  false, false, false},
-        {true,  false, false, false, false, false, false, false, true},
-        {false, true,  false, false, true,  false, false, true,  false},
-        {false, false, false, true,  true,  true,  false, false, false},
-        {false, true,  false, false, true,  false, false, true,  false},
-        {true,  false, false, false, false, false, false, false, true},
-        {false, false, false, true,  false, true,  false, false, false},
-        {false, false, true,  false, false, false, true,  false, false}
+    // Exact 9x9 intersection pattern from the reference PNG.
+    // Each string is one north-to-south Z row; characters run west-to-east along X.
+    // S = spruce planks, B = birch planks. The 2x2 spruce corners continue the road edges.
+    private static final String[] MOTIF = {
+        "SSBBBBBSS",
+        "SSBSSBBSS",
+        "BBBBSSBBB",
+        "BBSBBBBSB",
+        "BSSBSBSSB",
+        "BSBBBBSBB",
+        "BBBSSBBBB",
+        "SSBBSSBSS",
+        "SSBBBBBSS"
     };
 
     public PlotChunkGenerator(BiomeSource biomeSource) {
@@ -74,8 +76,9 @@ public class PlotChunkGenerator extends ChunkGenerator {
         return (i < 2 || i > 6) ? SPRUCE : BIRCH;
     }
 
-    private static BlockState motif(int i, int j) {
-        return MOTIF[i][j] ? SPRUCE : BIRCH;
+    private static BlockState motif(int x, int z) {
+        // The array is stored like the PNG (rows = Z, columns = X).
+        return MOTIF[z].charAt(x) == 'S' ? SPRUCE : BIRCH;
     }
 
     private static boolean isSlabPosition(int wx, int wz) {
