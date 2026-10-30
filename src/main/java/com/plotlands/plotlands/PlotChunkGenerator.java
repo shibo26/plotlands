@@ -39,7 +39,7 @@ public class PlotChunkGenerator extends ChunkGenerator {
     private static final BlockState DIRT = Blocks.DIRT.getDefaultState();
     private static final BlockState STONE = Blocks.STONE.getDefaultState();
     private static final BlockState BEDROCK = Blocks.BEDROCK.getDefaultState();
-    private static final BlockState SLAB = Blocks.SANDSTONE_SLAB.getDefaultState();
+    private static final BlockState SLAB = Blocks.SMOOTH_STONE_SLAB.getDefaultState();
     private static final BlockState SPRUCE = Blocks.SPRUCE_PLANKS.getDefaultState();
     private static final BlockState BIRCH = Blocks.BIRCH_PLANKS.getDefaultState();
 
